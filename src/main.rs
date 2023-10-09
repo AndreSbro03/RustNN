@@ -2,8 +2,6 @@
 In questo momento il codice è statico, bisogna renderlo dinamico
 usando la memoria dinamica in modo da poter automaticamente allocare
 un quantitativo corretto di memoria e non un valore predefinito.
-
-Token git: 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
 */
 use rand::Rng;
 use fast_math::exp;
@@ -13,7 +11,6 @@ const NUM_TRAIN_SAMPLE: usize = 4;
 const NUM_TEST: u32 = 100 * 1000;
 const EPS: f64 = 0.1;
 const RATE: f64 = 1.3;
-const NUM_NEURONS: usize = 3;
 
 const AND: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
     [0.0,0.0,0.0],
@@ -44,13 +41,14 @@ const NAND: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
     ];
 
 const DATA: [[f64; 3]; NUM_TRAIN_SAMPLE] = NAND;
-const LEN_ARC: usize = 2;
-const ARC: [usize; LEN_ARC] = [2,1];
+const LEN_ARC: usize = 3;
+const ARC: [usize; LEN_ARC] = [3,2,1];
+const NUM_NEURONS: usize = 6;
 
 #[derive(Debug)]
 #[derive(Default)]
 struct Neuron {
-    w: [f64; INPUT],
+    w: [f64; INPUT], // TODO i pesi sono fissi per ogni Neurone, non dovrebbe esser così
     b: f64,
 }
 
@@ -96,31 +94,40 @@ fn randomf() -> f64 {
     (rand::thread_rng().gen_range(0..=1000) as f64) / 1000.0
 }
 
-fn cost(Neurons: &mut [Neuron; NUM_NEURONS]) -> f64 {
-
-    let mut y: [f64; INPUT] = [0.0, 0.0];
+fn cost(nrs: &mut [Neuron; NUM_NEURONS]) -> f64 {
     let mut out: f64 = -1.0;
+    let mut res: f64 = -1.0;
 
     for a in 0..NUM_TRAIN_SAMPLE{ //Per ogni tupla d'input
         let mut idx: usize = 0;
+        let mut output: Vec<f64> = Vec::with_capacity(ARC[0]);
+
         for b in 0..LEN_ARC { //Per ogni Layer dell'architettura
+            
+            let mut input: Vec<f64> = Vec::with_capacity(output.len());
+            input = output.clone();
+            if b != 0 {
+                let mut output: Vec<f64> = Vec::with_capacity(ARC[b]);
+            }
+
             for c in 0..(ARC[b]){ //Per ogni Neurone del Layer                
-                let mut inp = 0.0;
+                let mut somma = 0.0;                
                 for d in 0..INPUT{ //Per ogni input
-                    //println!("{} {} {} {} {}", idx, a, b, c, d);
+                    //println!("{} {} {} {}", idx, d, nrs.len(), nrs[0].w.len());
                     if b == 0{
-                        inp += Neurons[idx].w[d] * DATA[a][d];
+                        somma += nrs[idx].w[d] * DATA[a][d];
                     }
                     else {
-                        inp += Neurons[idx].w[d] * y[d];
+                        somma += nrs[idx].w[d] * input[d];
                     }
                 }
-                inp += Neurons[idx].b;
-                y[c] = sigmuid(inp);
+                somma += nrs[idx].b;
+                output.push(sigmuid(somma));
                 idx += 1;
             }
+            res = output[0];
         }
-        let dst:    f64  = y[0] - DATA[a][INPUT];         
+        let dst:    f64  = res - DATA[a][INPUT];         
         out += dst * dst;
     }
 
@@ -175,24 +182,38 @@ fn updateWeights(nrs: &mut [Neuron; NUM_NEURONS], pr: u8) {
 
 fn printResults(nrs: &mut [Neuron; NUM_NEURONS], data: [f64; INPUT]){
     let mut idx: usize = 0;
-    let mut y: [f64; INPUT] = [0.0, 0.0];
+    let mut res: f64 = -1.0;
+    let mut output: Vec<f64> = Vec::with_capacity(ARC[0]);
     
     for b in 0..LEN_ARC { //Per ogni Layer dell'architettura
-        for c in 0..ARC[b]{ //Per ogni Neurone del Layer                
-                let mut inp = 0.0;
-                for d in 0..INPUT{ //Per ogni input
-                    if b == 0{
-                        inp += nrs[idx].w[d] * data[d];
-                    }
-                    else {
-                        inp += nrs[idx].w[d] * y[d];
-                    }
+
+        /// In questa parte andiamo a copiare il risultato del output che
+        /// diventerà l'input per la prossima serie di neuroni. In più se 
+        /// non siamo alla prima simulazione il vettore output verrà 
+        /// reinizializzato
+        let mut input: Vec<f64> = Vec::with_capacity(output.len());
+        input = output.clone();
+        if b != 0 {
+            let mut output: Vec<f64> = Vec::with_capacity(ARC[b]);
+        }
+
+        for c in 0..(ARC[b]){ //Per ogni Neurone del Layer                
+            let mut somma = 0.0;                
+            for d in 0..INPUT{ //Per ogni input
+                //println!("{} {} {} {} {}", idx, a, b, c, d);
+                if b == 0{
+                    somma += nrs[idx].w[d] * data[d];
                 }
-                inp += nrs[idx].b;
-                y[c] = sigmuid(inp);
-                idx += 1;
+                else {
+                    somma += nrs[idx].w[d] * input[d];
+                }
             }
+            somma += nrs[idx].b;
+            output.push(sigmuid(somma));
+            idx += 1;
+        }
+        res = output[0];
     }
 
-    println!("{} {} {}", data[0], data[1], y[0])
+    println!("{} {} {}", data[0], data[1], res);
 }
