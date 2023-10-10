@@ -42,8 +42,8 @@ const NAND: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
 
 const DATA: [[f64; 3]; NUM_TRAIN_SAMPLE] = XOR;
 const LEN_ARC: usize = 2;
-const ARC: [usize; LEN_ARC] = [2,1];
-const NUM_NEURONS: usize = 3;
+const ARC: [usize; LEN_ARC] = [16,16];
+const NUM_NEURONS: usize = 32;
 
 #[derive(Debug)]
 #[derive(Default)]
