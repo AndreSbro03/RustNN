@@ -91,18 +91,28 @@ fn sigmuid(x: f64) -> f64 {
 }
 
 fn randomf() -> f64 {
-    (rand::thread_rng().gen_range(0..=1000) as f64) / 1000.0
+    (rand::thread_rng().gen_range(-1000..=1000) as f64) / 1000.0
 }
 
 fn cost(Neurons: &mut [Neuron; NUM_NEURONS]) -> f64 {
-
-    let mut y: [f64; INPUT] = [0.0, 0.0];
-    let mut out: f64 = -1.0;
+    let mut out: f64 = 0.0;
+    let mut res: f64 = -1.0;
 
     for a in 0..NUM_TRAIN_SAMPLE{ //Per ogni tupla d'input
+
+        let mut output: Vec<f64> = Vec::with_capacity(ARC[0]);
         let mut idx: usize = 0;
+
         for b in 0..LEN_ARC { //Per ogni Layer dell'architettura
+            
+            let mut input: Vec<f64> = Vec::with_capacity(output.len());
+            input = output.clone();
+            if b != 0 {
+                output = Vec::with_capacity(ARC[b]);
+            }
+
             for c in 0..(ARC[b]){ //Per ogni Neurone del Layer                
+                
                 let mut inp = 0.0;
                 for d in 0..INPUT{ //Per ogni input
                     //println!("{} {} {} {} {}", idx, a, b, c, d);
@@ -110,15 +120,17 @@ fn cost(Neurons: &mut [Neuron; NUM_NEURONS]) -> f64 {
                         inp += Neurons[idx].w[d] * DATA[a][d];
                     }
                     else {
-                        inp += Neurons[idx].w[d] * y[d];
+                        inp += Neurons[idx].w[d] * input[d];
                     }
                 }
+                
                 inp += Neurons[idx].b;
-                y[c] = sigmuid(inp);
+                output.push(sigmuid(inp));
                 idx += 1;
             }
+            res = output[0];
         }
-        let dst:    f64  = y[0] - DATA[a][INPUT];         
+        let dst:    f64  = res - DATA[a][INPUT];         
         out += dst * dst;
     }
 
@@ -137,6 +149,7 @@ fn getRandomizedNeuron() -> Neuron {
 
 fn updateWeights(nrs: &mut [Neuron; NUM_NEURONS], pr: u8) {
     let cst: f64 =  cost(nrs); 
+    //println!("{}", cst);
 
     let mut idx: usize = 0;
 
