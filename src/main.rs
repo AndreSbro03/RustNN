@@ -7,9 +7,9 @@ use fast_math::exp;
 use rand::Rng;
 use raylib::prelude::*;
 
-const NUM_TEST: u32 = 50 * 1000;
-const EPS: f64 = 0.1;
-const RATE: f64 = 1.7;
+const NUM_TEST: u32 = 25 * 1000;
+const EPS: f64 = 0.05;
+const MAX_RATE: f64 = 3.0;
 
 const INPUT: usize = 2;
 const NUM_TRAIN_SAMPLE: usize = 4;
@@ -42,18 +42,24 @@ const NAND: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
 ];
 
 const DATA: [[f64; 3]; NUM_TRAIN_SAMPLE] = XOR;
-const LEN_ARC: usize = 2;
-const ARC: [usize; LEN_ARC] = [2, 1];
-const NUM_NEURONS: usize = 3;
+const LEN_ARC: usize = 3;
+const ARC: [usize; LEN_ARC] = [4, 4, 2];
+const NUM_NEURONS: usize = 10;
 
 const SCREEN_HEIGHT: i32 = 720;
 const SCREEN_WIDTH: i32 = (SCREEN_HEIGHT * 16) / 9;
 
-const GRAPHICS_WIDTH: i32 = 600;
-const GRAPHICS_HEIGHT: i32 = 400;
+const GRAPHICS_WIDTH: i32 = 700;
+const GRAPHICS_HEIGHT: i32 = 500;
+const GRAPHICS_TOP_PADDING: i32 = 100;
+const GRAPHICS_LEFT_PADDING: i32 = 50;
 
 const TEXT_DIM: i32 = 23;
 const DEF_PADDING: i32 = 30;
+const DEF_MARGIN: i32 = 8;
+
+const RATE_BAR_H_PADDING: i32 = SCREEN_WIDTH / 16;
+const RATE_BAR_RADIUS: f32 = 15.0;
 
 #[derive(Debug, Default)]
 struct Neuron {
@@ -79,19 +85,25 @@ fn main() {
         }
     }
 
-    //println!("{:#?}", nrs);
+    let mut rate: f64 = 0.5;
 
     let mut cont: u32 = 0;
     let mut max_cost: f64 = -1.0;
+
+    let mut rate_circle_x = ((rate / MAX_RATE) * (SCREEN_WIDTH - 2 * RATE_BAR_H_PADDING) as f64)
+        as i32
+        + RATE_BAR_H_PADDING;
+    let rate_circle_y = SCREEN_HEIGHT / 9;
+
+    let mut is_rate_button_clicked = false;
 
     while !rl.window_should_close() {
         let mut d = rl.begin_drawing(&thread);
 
         d.clear_background(Color::BLACK);
-        //d.draw_text("Hello, world!", 12, 12, 20, Color::WHITE);
 
         if cont < NUM_TEST {
-            cost = update_weights(&mut nrs, 0);
+            cost = update_weights(&mut nrs, rate, false);
 
             //println!("{}", cost);
             if cont == 0 {
@@ -101,59 +113,56 @@ fn main() {
                 costs_vec.push((max_cost - cost) / max_cost);
                 //println!("{} {} {}", cost, max_cost, (max_cost - cost) / max_cost);
             }
+            cont += 1;
         }
 
-        let vec_len = costs_vec.len();
+        d.draw_text(
+            &(format!("{} / {}", cont, NUM_TEST)),
+            SCREEN_WIDTH * 3 / 4,
+            SCREEN_HEIGHT * 3 / 4,
+            TEXT_DIM,
+            Color::WHITE,
+        );
 
-        for n_point in 1..vec_len {
-            d.draw_circle(
-                (((n_point as f64) / (vec_len as f64)) * GRAPHICS_WIDTH as f64) as i32 + 20,
-                (costs_vec[n_point] * GRAPHICS_HEIGHT as f64) as i32 + 20,
-                2.0,
-                Color::RED,
-            );
+        nn_draw_graph(&mut d, &mut costs_vec);
+        nn_draw_lg_text(&mut d, &mut nrs);
+
+        d.draw_line(
+            RATE_BAR_H_PADDING,
+            rate_circle_y,
+            SCREEN_WIDTH - RATE_BAR_H_PADDING,
+            rate_circle_y,
+            Color::WHITE,
+        );
+
+        //Vediamo se il cursore è sul cerchio
+        if (((d.get_mouse_x() > (rate_circle_x - RATE_BAR_RADIUS as i32)
+            && d.get_mouse_x() < (rate_circle_x + RATE_BAR_RADIUS as i32))
+            && d.get_mouse_y() > (rate_circle_y - RATE_BAR_RADIUS as i32)
+            && d.get_mouse_y() < (rate_circle_y + RATE_BAR_RADIUS as i32))
+            || (is_rate_button_clicked))
+            && (d.get_mouse_x() >= RATE_BAR_H_PADDING
+                && d.get_mouse_x() <= SCREEN_WIDTH - RATE_BAR_H_PADDING)
+        {
+            is_rate_button_clicked = true;
+            if d.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+                rate_circle_x = d.get_mouse_x();
+                rate = ((rate_circle_x - RATE_BAR_H_PADDING) as f64
+                    / (SCREEN_WIDTH - 2 * RATE_BAR_H_PADDING) as f64)
+                    * MAX_RATE;
+            } else {
+                is_rate_button_clicked = false;
+            }
         }
 
-        cont += 1;
-
-        for x in 0..NUM_TRAIN_SAMPLE {
-            d.draw_text(
-                &(DATA[x][0].to_string()),
-                (0.75 * SCREEN_WIDTH as f64) as i32,
-                ((0.25 * SCREEN_HEIGHT as f64) as i32) + (x as i32 * DEF_PADDING),
-                TEXT_DIM,
-                Color::WHITE,
-            );
-
-            d.draw_text(
-                &(DATA[x][1].to_string()),
-                (0.75 * SCREEN_WIDTH as f64) as i32 + DEF_PADDING,
-                ((0.25 * SCREEN_HEIGHT as f64) as i32) + (x as i32 * DEF_PADDING),
-                TEXT_DIM,
-                Color::WHITE,
-            );
-
-            d.draw_text(
-                &(DATA[x][2].to_string()),
-                (0.75 * SCREEN_WIDTH as f64) as i32 + (DEF_PADDING * 2),
-                ((0.25 * SCREEN_HEIGHT as f64) as i32) + (x as i32 * DEF_PADDING),
-                TEXT_DIM,
-                Color::WHITE,
-            );
-
-            let res = format!(
-                "{:.4}",
-                nn_get_result(&mut nrs, [DATA[x][0], DATA[x][1]], false)
-            );
-
-            d.draw_text(
-                &res,
-                (0.75 * SCREEN_WIDTH as f64) as i32 + (DEF_PADDING * 3),
-                ((0.25 * SCREEN_HEIGHT as f64) as i32) + (x as i32 * DEF_PADDING),
-                TEXT_DIM,
-                Color::WHITE,
-            );
-        }
+        d.draw_circle(rate_circle_x, rate_circle_y, RATE_BAR_RADIUS, Color::PINK);
+        d.draw_text(
+            &format!("Rate: {:.2}", rate),
+            950,
+            600,
+            TEXT_DIM,
+            Color::WHITE,
+        );
     }
 }
 
@@ -162,7 +171,7 @@ fn sigmuid(x: f64) -> f64 {
 }
 
 fn randomf() -> f64 {
-    ((rand::thread_rng().gen_range(0..=1000) as f64) / 1000.0)
+    (rand::thread_rng().gen_range(-1000..=1000) as f64) / 1000.0
 }
 
 fn cost(nrs: &mut [Neuron; NUM_NEURONS]) -> f64 {
@@ -229,7 +238,7 @@ fn get_randomize_neuron(lidx: usize) -> Neuron {
     n
 }
 
-fn update_weights(nrs: &mut [Neuron; NUM_NEURONS], pr: u8) -> f64 {
+fn update_weights(nrs: &mut [Neuron; NUM_NEURONS], rate: f64, print: bool) -> f64 {
     let cst: f64 = cost(nrs);
 
     let mut idx: usize = 0;
@@ -246,18 +255,18 @@ fn update_weights(nrs: &mut [Neuron; NUM_NEURONS], pr: u8) -> f64 {
                 nrs[idx].w[inp_idx] += EPS;
                 let dw: f64 = (cost(nrs) - cst) / EPS;
                 nrs[idx].w[inp_idx] = weight[inp_idx];
-                nrs[idx].w[inp_idx] -= dw * RATE;
+                nrs[idx].w[inp_idx] -= dw * rate;
             }
 
             nrs[idx].b += EPS;
             let dw: f64 = (cost(nrs) - cst) / EPS;
             nrs[idx].b = bias;
-            nrs[idx].b -= dw * RATE;
+            nrs[idx].b -= dw * rate;
             idx += 1;
         }
     }
 
-    if pr == 1 {
+    if print == true {
         println!("-----------------------");
         for i in 0..=1 {
             for k in 0..=1 {
@@ -314,4 +323,81 @@ fn nn_get_result(nrs: &mut [Neuron; NUM_NEURONS], data: [f64; INPUT], print: boo
     }
 
     res
+}
+
+fn nn_draw_lg_text(d: &mut RaylibDrawHandle<'_>, nrs: &mut [Neuron; NUM_NEURONS]) {
+    let abs_x = (0.75 * SCREEN_WIDTH as f64) as i32;
+    let abs_y = (0.25 * SCREEN_HEIGHT as f64) as i32;
+
+    for x in 0..NUM_TRAIN_SAMPLE {
+        d.draw_text(
+            &(DATA[x][0].to_string()),
+            abs_x,
+            abs_y + (x as i32 * DEF_PADDING),
+            TEXT_DIM,
+            Color::WHITE,
+        );
+
+        d.draw_text(
+            &(DATA[x][1].to_string()),
+            abs_x + DEF_PADDING,
+            abs_y + (x as i32 * DEF_PADDING),
+            TEXT_DIM,
+            Color::WHITE,
+        );
+
+        d.draw_text(
+            &(DATA[x][2].to_string()),
+            abs_x + (DEF_PADDING * 2),
+            abs_y + (x as i32 * DEF_PADDING),
+            TEXT_DIM,
+            Color::WHITE,
+        );
+
+        let res = format!("{:.4}", nn_get_result(nrs, [DATA[x][0], DATA[x][1]], false));
+
+        d.draw_text(
+            &res,
+            abs_x + (DEF_PADDING * 3),
+            abs_y + (x as i32 * DEF_PADDING),
+            TEXT_DIM,
+            Color::WHITE,
+        );
+    }
+}
+
+fn nn_draw_graph(d: &mut RaylibDrawHandle<'_>, costs_vec: &mut Vec<f64>) {
+    let abs_x = GRAPHICS_LEFT_PADDING;
+    let abs_y = DEF_PADDING + GRAPHICS_TOP_PADDING;
+
+    d.draw_line(
+        abs_x - DEF_MARGIN,
+        abs_y,
+        abs_x - DEF_MARGIN,
+        abs_y + GRAPHICS_HEIGHT + DEF_MARGIN,
+        Color::WHITE,
+    );
+    d.draw_line(
+        abs_x - DEF_MARGIN,
+        abs_y + GRAPHICS_HEIGHT + DEF_MARGIN,
+        abs_x + GRAPHICS_WIDTH,
+        abs_y + GRAPHICS_HEIGHT + DEF_MARGIN,
+        Color::WHITE,
+    );
+
+    let vec_len = costs_vec.len();
+
+    let mut x_prec: i32 = -1;
+    let mut y_prec: i32 = -1;
+
+    for n_point in 1..vec_len {
+        let x = (((n_point as f64) / (vec_len as f64)) * GRAPHICS_WIDTH as f64) as i32 + abs_x;
+        let y = (costs_vec[n_point] * GRAPHICS_HEIGHT as f64) as i32 + abs_y;
+        //Se i due cerchi hanno le stesse coordinate evito di disegnarli due volte
+        if !((x_prec == x) && (y_prec == y)) {
+            d.draw_circle(x, y, 2.0, Color::RED);
+        }
+        x_prec = x;
+        y_prec = y;
+    }
 }
