@@ -1,15 +1,11 @@
-/*
-In questo momento il codice è statico, bisogna renderlo dinamico
-usando la memoria dinamica in modo da poter automaticamente allocare
-un quantitativo corretto di memoria e non un valore predefinito.
-*/
 use fast_math::exp;
 use rand::Rng;
 use raylib::prelude::*;
 
+//INIZIO COSTANTI NN
 const NUM_TEST: u32 = 25 * 1000;
-const EPS: f64 = 0.05;
-const MAX_RATE: f64 = 3.0;
+const EPS: f64 = 0.3;
+const MAX_RATE: f64 = 5.0;
 
 const INPUT: usize = 2;
 const NUM_TRAIN_SAMPLE: usize = 4;
@@ -42,29 +38,46 @@ const NAND: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
 ];
 
 const DATA: [[f64; 3]; NUM_TRAIN_SAMPLE] = XOR;
-const LEN_ARC: usize = 3;
-const ARC: [usize; LEN_ARC] = [4, 4, 2];
-const NUM_NEURONS: usize = 10;
+const LEN_ARC: usize = 4;
+const ARC: [usize; LEN_ARC] = [5, 5, 5, 5];
+const NUM_NEURONS: usize = 20;
 
+//FINE COSTANTI NN
+
+//INIZIO COSTANTI PER RAYLIB
 const SCREEN_HEIGHT: i32 = 720;
 const SCREEN_WIDTH: i32 = (SCREEN_HEIGHT * 16) / 9;
 
-const GRAPHICS_WIDTH: i32 = 700;
-const GRAPHICS_HEIGHT: i32 = 500;
-const GRAPHICS_TOP_PADDING: i32 = 100;
-const GRAPHICS_LEFT_PADDING: i32 = 50;
-
+//COSTANTI BASE
 const TEXT_DIM: i32 = 23;
 const DEF_PADDING: i32 = 30;
 const DEF_MARGIN: i32 = 8;
 
+//GESTIONE DELLA BARRA SUPERIORE
+const TOP_BAR_POS: IntVec2 = IntVec2{x: 75, y: 40};
+const TOP_BAR_DIM: IntVec2 = IntVec2{x: SCREEN_WIDTH / 4 * 3, y: 0};
+
+//GESTIONE DELLA BARRA DEL RATE
 const RATE_BAR_H_PADDING: i32 = SCREEN_WIDTH / 16;
+const RATE_BAR_POS: IntVec2 = IntVec2{x: RATE_BAR_H_PADDING, y: SCREEN_HEIGHT / 9 + TOP_BAR_POS.y + TOP_BAR_DIM.y};
+const RATE_BAR_DIM: IntVec2 = IntVec2{x: SCREEN_WIDTH - 2 * RATE_BAR_H_PADDING, y: 0}; 
 const RATE_BAR_RADIUS: f32 = 15.0;
+
+//GESTIONE DEL GRAFICO
+const GRAPHIC_POS: IntVec2 = IntVec2{x: RATE_BAR_POS.x, y: RATE_BAR_POS.y + DEF_PADDING * 2};
+const GRAPHIC_DIM: IntVec2 = IntVec2{x: 600, y: 400};
+
 
 #[derive(Debug, Default)]
 struct Neuron {
     w: Vec<f64>,
     b: f64,
+}
+
+#[derive(Debug, Default)]
+struct IntVec2 {
+    x: i32,
+    y: i32,
 }
 
 fn main() {
@@ -85,15 +98,14 @@ fn main() {
         }
     }
 
-    let mut rate: f64 = 0.5;
+    let mut rate: f64 = 1.7;
 
     let mut cont: u32 = 0;
     let mut max_cost: f64 = -1.0;
 
-    let mut rate_circle_x = ((rate / MAX_RATE) * (SCREEN_WIDTH - 2 * RATE_BAR_H_PADDING) as f64)
+    let mut rate_circle: IntVec2 = IntVec2 { x: ((rate / MAX_RATE) * (SCREEN_WIDTH - 2 * RATE_BAR_H_PADDING) as f64)
         as i32
-        + RATE_BAR_H_PADDING;
-    let rate_circle_y = SCREEN_HEIGHT / 9;
+        + RATE_BAR_H_PADDING, y: RATE_BAR_POS.y };
 
     let mut is_rate_button_clicked = false;
 
@@ -116,54 +128,13 @@ fn main() {
             cont += 1;
         }
 
-        d.draw_text(
-            &(format!("{} / {}", cont, NUM_TEST)),
-            SCREEN_WIDTH * 3 / 4,
-            SCREEN_HEIGHT * 3 / 4,
-            TEXT_DIM,
-            Color::WHITE,
-        );
-
         nn_draw_graph(&mut d, &mut costs_vec);
         nn_draw_lg_text(&mut d, &mut nrs);
-
-        d.draw_line(
-            RATE_BAR_H_PADDING,
-            rate_circle_y,
-            SCREEN_WIDTH - RATE_BAR_H_PADDING,
-            rate_circle_y,
-            Color::WHITE,
-        );
-
-        //Vediamo se il cursore è sul cerchio
-        if (((d.get_mouse_x() > (rate_circle_x - RATE_BAR_RADIUS as i32)
-            && d.get_mouse_x() < (rate_circle_x + RATE_BAR_RADIUS as i32))
-            && d.get_mouse_y() > (rate_circle_y - RATE_BAR_RADIUS as i32)
-            && d.get_mouse_y() < (rate_circle_y + RATE_BAR_RADIUS as i32))
-            || (is_rate_button_clicked))
-            && (d.get_mouse_x() >= RATE_BAR_H_PADDING
-                && d.get_mouse_x() <= SCREEN_WIDTH - RATE_BAR_H_PADDING)
-        {
-            is_rate_button_clicked = true;
-            if d.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
-                rate_circle_x = d.get_mouse_x();
-                rate = ((rate_circle_x - RATE_BAR_H_PADDING) as f64
-                    / (SCREEN_WIDTH - 2 * RATE_BAR_H_PADDING) as f64)
-                    * MAX_RATE;
-            } else {
-                is_rate_button_clicked = false;
-            }
-        }
-
-        d.draw_circle(rate_circle_x, rate_circle_y, RATE_BAR_RADIUS, Color::PINK);
-        d.draw_text(
-            &format!("Rate: {:.2}", rate),
-            950,
-            600,
-            TEXT_DIM,
-            Color::WHITE,
-        );
+        nn_draw_rate_bar(&mut d, &mut rate_circle, &mut is_rate_button_clicked, &mut rate);
+        nn_draw_infos(&mut d, rate, cont);
+        //println!("{:#?}", nrs);
     }
+    
 }
 
 fn sigmuid(x: f64) -> f64 {
@@ -171,7 +142,7 @@ fn sigmuid(x: f64) -> f64 {
 }
 
 fn randomf() -> f64 {
-    (rand::thread_rng().gen_range(-1000..=1000) as f64) / 1000.0
+    (rand::thread_rng().gen_range(-1000..=1000) as f64) / 1000.0 * 5.0
 }
 
 fn cost(nrs: &mut [Neuron; NUM_NEURONS]) -> f64 {
@@ -367,21 +338,19 @@ fn nn_draw_lg_text(d: &mut RaylibDrawHandle<'_>, nrs: &mut [Neuron; NUM_NEURONS]
 }
 
 fn nn_draw_graph(d: &mut RaylibDrawHandle<'_>, costs_vec: &mut Vec<f64>) {
-    let abs_x = GRAPHICS_LEFT_PADDING;
-    let abs_y = DEF_PADDING + GRAPHICS_TOP_PADDING;
 
     d.draw_line(
-        abs_x - DEF_MARGIN,
-        abs_y,
-        abs_x - DEF_MARGIN,
-        abs_y + GRAPHICS_HEIGHT + DEF_MARGIN,
+        GRAPHIC_POS.x - DEF_MARGIN,
+        GRAPHIC_POS.y,
+        GRAPHIC_POS.x - DEF_MARGIN,
+        GRAPHIC_POS.y + GRAPHIC_DIM.y + DEF_MARGIN,
         Color::WHITE,
     );
     d.draw_line(
-        abs_x - DEF_MARGIN,
-        abs_y + GRAPHICS_HEIGHT + DEF_MARGIN,
-        abs_x + GRAPHICS_WIDTH,
-        abs_y + GRAPHICS_HEIGHT + DEF_MARGIN,
+        GRAPHIC_POS.x - DEF_MARGIN,
+        GRAPHIC_POS.y + GRAPHIC_DIM.y + DEF_MARGIN,
+        GRAPHIC_POS.x + GRAPHIC_DIM.x,
+        GRAPHIC_POS.y + GRAPHIC_DIM.y + DEF_MARGIN,
         Color::WHITE,
     );
 
@@ -391,8 +360,8 @@ fn nn_draw_graph(d: &mut RaylibDrawHandle<'_>, costs_vec: &mut Vec<f64>) {
     let mut y_prec: i32 = -1;
 
     for n_point in 1..vec_len {
-        let x = (((n_point as f64) / (vec_len as f64)) * GRAPHICS_WIDTH as f64) as i32 + abs_x;
-        let y = (costs_vec[n_point] * GRAPHICS_HEIGHT as f64) as i32 + abs_y;
+        let x = (((n_point as f64) / (vec_len as f64)) * GRAPHIC_DIM.x as f64) as i32 + GRAPHIC_POS.x;
+        let y = (costs_vec[n_point] * GRAPHIC_DIM.y as f64) as i32 + GRAPHIC_POS.y;
         //Se i due cerchi hanno le stesse coordinate evito di disegnarli due volte
         if !((x_prec == x) && (y_prec == y)) {
             d.draw_circle(x, y, 2.0, Color::RED);
@@ -400,4 +369,59 @@ fn nn_draw_graph(d: &mut RaylibDrawHandle<'_>, costs_vec: &mut Vec<f64>) {
         x_prec = x;
         y_prec = y;
     }
+}
+
+fn nn_draw_rate_bar(d: &mut RaylibDrawHandle<'_>, rate_circle: &mut IntVec2, is_rate_button_clicked: &mut bool, rate: &mut f64) {
+    d.draw_line(
+        RATE_BAR_POS.x,
+        RATE_BAR_POS.y,
+        RATE_BAR_POS.x + RATE_BAR_DIM.x,
+        RATE_BAR_POS.y + RATE_BAR_DIM.y,
+        Color::WHITE,
+    );
+
+    //Vediamo se il cursore è sul cerchio
+    if (((d.get_mouse_x() > (rate_circle.x - RATE_BAR_RADIUS as i32)
+        && d.get_mouse_x() < (rate_circle.x + RATE_BAR_RADIUS as i32))
+        && d.get_mouse_y() > (rate_circle.y - RATE_BAR_RADIUS as i32)
+        && d.get_mouse_y() < (rate_circle.y + RATE_BAR_RADIUS as i32))
+        || (*is_rate_button_clicked))
+        && (d.get_mouse_x() >= RATE_BAR_POS.x
+            && d.get_mouse_x() <= RATE_BAR_POS.x + RATE_BAR_DIM.x)
+    {
+        *is_rate_button_clicked = true;
+        if d.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+            rate_circle.x = d.get_mouse_x();
+            *rate = ((rate_circle.x - RATE_BAR_H_PADDING) as f64
+                / RATE_BAR_DIM.x as f64)
+                * MAX_RATE;
+        } else {
+            *is_rate_button_clicked = false;
+        }
+    }
+
+    d.draw_circle(rate_circle.x, rate_circle.y, RATE_BAR_RADIUS, Color::PINK);
+    
+    
+
+}
+
+fn nn_draw_infos(d: &mut RaylibDrawHandle<'_>, rate: f64, cont: u32){
+
+    d.draw_text(
+        &format!("Rate: {:.2}", rate),
+        TOP_BAR_POS.x,
+        TOP_BAR_POS.y,
+        TEXT_DIM,
+        Color::WHITE,
+    );
+
+    d.draw_text(
+        &(format!("{} / {}", cont, NUM_TEST)),
+        TOP_BAR_POS.x + TOP_BAR_DIM.x,
+        TOP_BAR_POS.y + TOP_BAR_DIM.y,
+        TEXT_DIM,
+        Color::WHITE,
+    );
+
 }
