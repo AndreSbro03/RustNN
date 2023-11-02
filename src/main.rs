@@ -1,10 +1,10 @@
 use fast_math::exp;
 use rand::Rng;
-use raylib::prelude::*;
+use raylib::{ffi::ColorAlpha, prelude::*};
 
 //INIZIO COSTANTI NN
 const NUM_TEST: u32 = 25 * 1000;
-const EPS: f64 = 0.3;
+const EPS: f64 = 0.15;
 const MAX_RATE: f64 = 5.0;
 
 const INPUT: usize = 2;
@@ -38,9 +38,9 @@ const NAND: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
 ];
 
 const DATA: [[f64; 3]; NUM_TRAIN_SAMPLE] = XOR;
-const LEN_ARC: usize = 4;
-const ARC: [usize; LEN_ARC] = [5, 5, 5, 5];
-const NUM_NEURONS: usize = 20;
+const LEN_ARC: usize = 2;
+const ARC: [usize; LEN_ARC] = [3, 1];
+const NUM_NEURONS: usize = 4;
 
 //FINE COSTANTI NN
 
@@ -54,19 +54,41 @@ const DEF_PADDING: i32 = 30;
 const DEF_MARGIN: i32 = 8;
 
 //GESTIONE DELLA BARRA SUPERIORE
-const TOP_BAR_POS: IntVec2 = IntVec2{x: 75, y: 40};
-const TOP_BAR_DIM: IntVec2 = IntVec2{x: SCREEN_WIDTH / 4 * 3, y: 0};
+const TOP_BAR_POS: IntVec2 = IntVec2 { x: 75, y: 40 };
+const TOP_BAR_DIM: IntVec2 = IntVec2 {
+    x: SCREEN_WIDTH / 4 * 3,
+    y: 0,
+};
 
 //GESTIONE DELLA BARRA DEL RATE
 const RATE_BAR_H_PADDING: i32 = SCREEN_WIDTH / 16;
-const RATE_BAR_POS: IntVec2 = IntVec2{x: RATE_BAR_H_PADDING, y: SCREEN_HEIGHT / 9 + TOP_BAR_POS.y + TOP_BAR_DIM.y};
-const RATE_BAR_DIM: IntVec2 = IntVec2{x: SCREEN_WIDTH - 2 * RATE_BAR_H_PADDING, y: 0}; 
+const RATE_BAR_POS: IntVec2 = IntVec2 {
+    x: RATE_BAR_H_PADDING,
+    y: SCREEN_HEIGHT / 9 + TOP_BAR_POS.y + TOP_BAR_DIM.y,
+};
+const RATE_BAR_DIM: IntVec2 = IntVec2 {
+    x: SCREEN_WIDTH - 2 * RATE_BAR_H_PADDING,
+    y: 0,
+};
 const RATE_BAR_RADIUS: f32 = 15.0;
 
 //GESTIONE DEL GRAFICO
-const GRAPHIC_POS: IntVec2 = IntVec2{x: RATE_BAR_POS.x, y: RATE_BAR_POS.y + DEF_PADDING * 2};
-const GRAPHIC_DIM: IntVec2 = IntVec2{x: 600, y: 400};
+const GRAPHIC_POS: IntVec2 = IntVec2 {
+    x: RATE_BAR_POS.x,
+    y: RATE_BAR_POS.y + DEF_PADDING * 2,
+};
+const GRAPHIC_DIM: IntVec2 = IntVec2 { x: 600, y: 400 };
 
+//GESTIONE DELLA VISUALIZZAZIONE DELLA NN
+const VISUAL_NN_POS: IntVec2 = IntVec2 {
+    x: SCREEN_WIDTH / 16 * 10,
+    y: SCREEN_HEIGHT / 5 * 3,
+};
+const VISUAL_NN_DIM: IntVec2 = IntVec2 {
+    x: SCREEN_WIDTH - DEF_PADDING - VISUAL_NN_POS.x,
+    y: SCREEN_HEIGHT - DEF_PADDING - VISUAL_NN_POS.y,
+};
+const VISUAL_NN_NEURONS_RADIUS: f32 = 20.0;
 
 #[derive(Debug, Default)]
 struct Neuron {
@@ -74,7 +96,7 @@ struct Neuron {
     b: f64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct IntVec2 {
     x: i32,
     y: i32,
@@ -83,7 +105,7 @@ struct IntVec2 {
 fn main() {
     let (mut rl, thread) = raylib::init()
         .size(SCREEN_WIDTH, SCREEN_HEIGHT)
-        .title("Hello, World")
+        .title("Neural Network")
         .build();
 
     let mut nrs: [Neuron; NUM_NEURONS] = Default::default();
@@ -98,14 +120,16 @@ fn main() {
         }
     }
 
-    let mut rate: f64 = 1.7;
+    let mut rate: f64 = 1.2;
 
     let mut cont: u32 = 0;
     let mut max_cost: f64 = -1.0;
 
-    let mut rate_circle: IntVec2 = IntVec2 { x: ((rate / MAX_RATE) * (SCREEN_WIDTH - 2 * RATE_BAR_H_PADDING) as f64)
-        as i32
-        + RATE_BAR_H_PADDING, y: RATE_BAR_POS.y };
+    let mut rate_circle: IntVec2 = IntVec2 {
+        x: ((rate / MAX_RATE) * (SCREEN_WIDTH - 2 * RATE_BAR_H_PADDING) as f64) as i32
+            + RATE_BAR_H_PADDING,
+        y: RATE_BAR_POS.y,
+    };
 
     let mut is_rate_button_clicked = false;
 
@@ -130,11 +154,16 @@ fn main() {
 
         nn_draw_graph(&mut d, &mut costs_vec);
         nn_draw_lg_text(&mut d, &mut nrs);
-        nn_draw_rate_bar(&mut d, &mut rate_circle, &mut is_rate_button_clicked, &mut rate);
+        nn_draw_rate_bar(
+            &mut d,
+            &mut rate_circle,
+            &mut is_rate_button_clicked,
+            &mut rate,
+        );
         nn_draw_infos(&mut d, rate, cont);
+        nn_draw_neurons(&mut d, &mut nrs);
         //println!("{:#?}", nrs);
     }
-    
 }
 
 fn sigmuid(x: f64) -> f64 {
@@ -157,7 +186,7 @@ fn cost(nrs: &mut [Neuron; NUM_NEURONS]) -> f64 {
         for layer_idx in 0..LEN_ARC {
             //Per ogni Layer dell'architettura
 
-            let mut input: Vec<f64> = Vec::with_capacity(output.len());
+            let input: Vec<f64>;
             input = output.clone();
             if layer_idx != 0 {
                 output = Vec::with_capacity(ARC[layer_idx]);
@@ -210,13 +239,14 @@ fn get_randomize_neuron(lidx: usize) -> Neuron {
 }
 
 fn update_weights(nrs: &mut [Neuron; NUM_NEURONS], rate: f64, print: bool) -> f64 {
-    let cst: f64 = cost(nrs);
-
+    //let cst: f64 = cost(nrs);
+    let mut cst: f64 = 0.0;
     let mut idx: usize = 0;
 
     for layer_idx in 0..LEN_ARC {
         //Per ogni Layer dell'architettura
         for _ in 0..ARC[layer_idx] {
+            cst = cost(nrs);
             //Per ogni Neurone del Layer
             let weight: Vec<f64> = (nrs[idx].w).clone();
             let bias: f64 = nrs[idx].b;
@@ -264,8 +294,7 @@ fn nn_get_result(nrs: &mut [Neuron; NUM_NEURONS], data: [f64; INPUT], print: boo
         non siamo alla prima simulazione il vettore output verrà
         reinizializzato
         */
-        let mut input: Vec<f64> = Vec::with_capacity(output.len());
-        input = output.clone();
+        let input: Vec<f64> = output.clone();
         if b != 0 {
             output = Vec::with_capacity(ARC[b]);
         }
@@ -338,7 +367,6 @@ fn nn_draw_lg_text(d: &mut RaylibDrawHandle<'_>, nrs: &mut [Neuron; NUM_NEURONS]
 }
 
 fn nn_draw_graph(d: &mut RaylibDrawHandle<'_>, costs_vec: &mut Vec<f64>) {
-
     d.draw_line(
         GRAPHIC_POS.x - DEF_MARGIN,
         GRAPHIC_POS.y,
@@ -360,7 +388,8 @@ fn nn_draw_graph(d: &mut RaylibDrawHandle<'_>, costs_vec: &mut Vec<f64>) {
     let mut y_prec: i32 = -1;
 
     for n_point in 1..vec_len {
-        let x = (((n_point as f64) / (vec_len as f64)) * GRAPHIC_DIM.x as f64) as i32 + GRAPHIC_POS.x;
+        let x =
+            (((n_point as f64) / (vec_len as f64)) * GRAPHIC_DIM.x as f64) as i32 + GRAPHIC_POS.x;
         let y = (costs_vec[n_point] * GRAPHIC_DIM.y as f64) as i32 + GRAPHIC_POS.y;
         //Se i due cerchi hanno le stesse coordinate evito di disegnarli due volte
         if !((x_prec == x) && (y_prec == y)) {
@@ -371,7 +400,12 @@ fn nn_draw_graph(d: &mut RaylibDrawHandle<'_>, costs_vec: &mut Vec<f64>) {
     }
 }
 
-fn nn_draw_rate_bar(d: &mut RaylibDrawHandle<'_>, rate_circle: &mut IntVec2, is_rate_button_clicked: &mut bool, rate: &mut f64) {
+fn nn_draw_rate_bar(
+    d: &mut RaylibDrawHandle<'_>,
+    rate_circle: &mut IntVec2,
+    is_rate_button_clicked: &mut bool,
+    rate: &mut f64,
+) {
     d.draw_line(
         RATE_BAR_POS.x,
         RATE_BAR_POS.y,
@@ -386,28 +420,22 @@ fn nn_draw_rate_bar(d: &mut RaylibDrawHandle<'_>, rate_circle: &mut IntVec2, is_
         && d.get_mouse_y() > (rate_circle.y - RATE_BAR_RADIUS as i32)
         && d.get_mouse_y() < (rate_circle.y + RATE_BAR_RADIUS as i32))
         || (*is_rate_button_clicked))
-        && (d.get_mouse_x() >= RATE_BAR_POS.x
-            && d.get_mouse_x() <= RATE_BAR_POS.x + RATE_BAR_DIM.x)
+        && (d.get_mouse_x() >= RATE_BAR_POS.x && d.get_mouse_x() <= RATE_BAR_POS.x + RATE_BAR_DIM.x)
     {
         *is_rate_button_clicked = true;
         if d.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
             rate_circle.x = d.get_mouse_x();
-            *rate = ((rate_circle.x - RATE_BAR_H_PADDING) as f64
-                / RATE_BAR_DIM.x as f64)
-                * MAX_RATE;
+            *rate =
+                ((rate_circle.x - RATE_BAR_H_PADDING) as f64 / RATE_BAR_DIM.x as f64) * MAX_RATE;
         } else {
             *is_rate_button_clicked = false;
         }
     }
 
     d.draw_circle(rate_circle.x, rate_circle.y, RATE_BAR_RADIUS, Color::PINK);
-    
-    
-
 }
 
-fn nn_draw_infos(d: &mut RaylibDrawHandle<'_>, rate: f64, cont: u32){
-
+fn nn_draw_infos(d: &mut RaylibDrawHandle<'_>, rate: f64, cont: u32) {
     d.draw_text(
         &format!("Rate: {:.2}", rate),
         TOP_BAR_POS.x,
@@ -423,5 +451,142 @@ fn nn_draw_infos(d: &mut RaylibDrawHandle<'_>, rate: f64, cont: u32){
         TEXT_DIM,
         Color::WHITE,
     );
+}
 
+fn nn_draw_neurons(d: &mut RaylibDrawHandle<'_>, nrs: &mut [Neuron; NUM_NEURONS]) {
+    let mut idx: usize = 0;
+    let mut bias: f64;
+    let mut weight: f64;
+    let mut max_bias: f64 = 0.0;
+    let mut max_w: f64 = 0.0;
+    let mut g: f64;
+    let mut r: f64;
+    let mut inp_centers: [IntVec2; INPUT] = Default::default();
+    let mut centers: Vec<IntVec2> = Vec::with_capacity(ARC[0]);
+    let mut prev_centers: Vec<IntVec2> = centers.clone();
+
+    //Disegno i cerchi dell'input
+    for l in 0..INPUT {
+        let center: IntVec2 = IntVec2 {
+            x: VISUAL_NN_POS.x + DEF_PADDING,
+            y: VISUAL_NN_POS.y + (VISUAL_NN_DIM.y / (INPUT + 1) as i32) * (l + 1) as i32,
+        };
+
+        d.draw_circle(
+            center.x,
+            center.y,
+            VISUAL_NN_NEURONS_RADIUS,
+            Color {
+                r: 0,
+                g: 150,
+                b: 150,
+                a: 255,
+            },
+        );
+
+        inp_centers[l] = center;
+    }
+
+    //Disegno la rete Neuroale
+    for i in 0..LEN_ARC {
+        //Per ogni neurone del layer
+        for j in 0..ARC[i] {
+            //per ogni bias
+            bias = nrs[idx].b;
+
+            if bias < 0.0 {
+                g = 0.0;
+                r = 255.0;
+            } else {
+                g = 255.0;
+                r = 0.0;
+            }
+
+            bias = abs(bias);
+            if bias > max_bias {
+                max_bias = bias;
+            }
+            bias /= max_bias;
+
+            let center: IntVec2 = IntVec2 {
+                x: VISUAL_NN_POS.x
+                    + DEF_PADDING
+                    + (VISUAL_NN_DIM.x / (LEN_ARC + 1) as i32) * (i + 1) as i32,
+                y: VISUAL_NN_POS.y + (VISUAL_NN_DIM.y / (ARC[i] + 1) as i32) * (j + 1) as i32,
+            };
+
+            //println!("{} {}", prev_centers.len(), centers.len());
+            for x in 0..nrs[idx].w.len() {
+                weight = (nrs[idx].w)[x];
+                if weight < 0.0 {
+                    g = 0.0;
+                    r = 255.0;
+                } else {
+                    g = 255.0;
+                    r = 0.0;
+                }
+
+                weight = abs(weight);
+                if weight > max_w {
+                    max_w = weight;
+                }
+                weight /= max_w;
+
+                if i == 0 {
+                    d.draw_line(
+                        inp_centers[x].x,
+                        inp_centers[x].y,
+                        center.x,
+                        center.y,
+                        Color {
+                            r: (r * weight) as u8,
+                            g: (g * weight) as u8,
+                            b: 0,
+                            a: 255,
+                        },
+                    );
+                } else {
+                    d.draw_line(
+                        prev_centers[x].x,
+                        prev_centers[x].y,
+                        center.x,
+                        center.y,
+                        Color {
+                            r: (r * weight) as u8,
+                            g: (g * weight) as u8,
+                            b: 0,
+                            a: 255,
+                        },
+                    );
+                }
+            }
+
+            d.draw_circle(
+                center.x,
+                center.y,
+                VISUAL_NN_NEURONS_RADIUS,
+                Color {
+                    r: (r * bias) as u8,
+                    g: (g * bias) as u8,
+                    b: 0,
+                    a: 255,
+                },
+            );
+
+            centers.push(center);
+
+            idx += 1;
+        }
+
+        prev_centers = centers.clone();
+        centers = Vec::with_capacity(ARC[i]);
+    }
+}
+
+fn abs(x: f64) -> f64 {
+    if x < 0.0 {
+        -x
+    } else {
+        x
+    }
 }
