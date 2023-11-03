@@ -1,11 +1,6 @@
-use std::ffi::CString;
-
 use fast_math::exp;
 use rand::Rng;
-use raylib::{
-    ffi::{ColorAlpha, ImageResize, LoadImage},
-    prelude::*,
-};
+use raylib::{ffi::ColorAlpha, prelude::*};
 
 //INIZIO COSTANTI NN
 const NUM_TEST: u32 = 25 * 1000;
@@ -14,6 +9,27 @@ const MAX_RATE: f64 = 5.0;
 
 const INPUT: usize = 2;
 const NUM_TRAIN_SAMPLE: usize = 4;
+const AND: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
+    [0.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0],
+    [1.0, 0.0, 0.0],
+    [1.0, 1.0, 1.0],
+];
+
+const OR: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
+    [0.0, 0.0, 0.0],
+    [0.0, 1.0, 1.0],
+    [1.0, 0.0, 1.0],
+    [1.0, 1.0, 1.0],
+];
+
+const XOR: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
+    [0.0, 0.0, 0.0],
+    [0.0, 1.0, 1.0],
+    [1.0, 0.0, 1.0],
+    [1.0, 1.0, 0.0],
+];
+
 const NAND: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
     [0.0, 0.0, 1.0],
     [0.0, 1.0, 1.0],
@@ -21,10 +37,10 @@ const NAND: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
     [1.0, 1.0, 0.0],
 ];
 
-const DATA: [[f64; 3]; NUM_TRAIN_SAMPLE] = NAND;
-const LEN_ARC: usize = 1;
-const ARC: [usize; LEN_ARC] = [1];
-const NUM_NEURONS: usize = 1;
+const DATA: [[f64; 3]; NUM_TRAIN_SAMPLE] = XOR;
+const LEN_ARC: usize = 2;
+const ARC: [usize; LEN_ARC] = [3, 1];
+const NUM_NEURONS: usize = 4;
 
 //FINE COSTANTI NN
 
@@ -74,15 +90,6 @@ const VISUAL_NN_DIM: IntVec2 = IntVec2 {
 };
 const VISUAL_NN_NEURONS_RADIUS: f32 = 20.0;
 
-//GESTIONE IMMAGINI
-const IMG_1_FPATH: &str = "images/8.png";
-const IMG_2_FPATH: &str = "images/6.png";
-const IMG_POS: IntVec2 = IntVec2 {
-    x: GRAPHIC_POS.x + GRAPHIC_DIM.x + DEF_PADDING * 4,
-    y: RATE_BAR_POS.y + RATE_BAR_DIM.y + DEF_PADDING * 2,
-};
-const IMG_DIM: IntVec2 = IntVec2 { x: 100, y: 100 };
-
 #[derive(Debug, Default)]
 struct Neuron {
     w: Vec<f64>,
@@ -126,15 +133,6 @@ fn main() {
 
     let mut is_rate_button_clicked = false;
 
-    //RESIZE AND LOAD IMAGES
-    let mut img1 = Image::load_image(IMG_1_FPATH).unwrap();
-    Image::resize(&mut img1, IMG_DIM.x, IMG_DIM.y);
-    let texture_1 = rl.load_texture_from_image(&thread, &img1).unwrap();
-
-    let mut img2 = Image::load_image(IMG_2_FPATH).unwrap();
-    Image::resize(&mut img2, IMG_DIM.x, IMG_DIM.y);
-    let texture_2 = rl.load_texture_from_image(&thread, &img2).unwrap();
-
     while !rl.window_should_close() {
         let mut d = rl.begin_drawing(&thread);
 
@@ -155,7 +153,7 @@ fn main() {
         }
 
         nn_draw_graph(&mut d, &mut costs_vec);
-        //nn_draw_lg_text(&mut d, &mut nrs);
+        nn_draw_lg_text(&mut d, &mut nrs);
         nn_draw_rate_bar(
             &mut d,
             &mut rate_circle,
@@ -165,8 +163,6 @@ fn main() {
         nn_draw_infos(&mut d, rate, cont);
         nn_draw_neurons(&mut d, &mut nrs);
         //println!("{:#?}", nrs);
-        d.draw_texture(&texture_1, IMG_POS.x, IMG_POS.y, Color::WHITE);
-        d.draw_texture(&texture_2, IMG_POS.x + IMG_DIM.x, IMG_POS.y, Color::WHITE);
     }
 }
 
@@ -598,5 +594,3 @@ fn abs(x: f64) -> f64 {
         x
     }
 }
-
-fn pixel_from_png() {}
