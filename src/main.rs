@@ -1,30 +1,21 @@
-use std::ffi::CString;
-
 use fast_math::exp;
 use rand::Rng;
-use raylib::{
-    ffi::{ColorAlpha, ImageResize, LoadImage},
-    prelude::*,
-};
+use raylib::prelude::*;
 
 //INIZIO COSTANTI NN
+//GESTIONE LEARNING
 const NUM_TEST: u32 = 25 * 1000;
 const EPS: f64 = 0.15;
 const MAX_RATE: f64 = 5.0;
 
-const INPUT: usize = 2;
-const NUM_TRAIN_SAMPLE: usize = 4;
-const NAND: [[f64; 3]; NUM_TRAIN_SAMPLE] = [
-    [0.0, 0.0, 1.0],
-    [0.0, 1.0, 1.0],
-    [1.0, 0.0, 1.0],
-    [1.0, 1.0, 0.0],
-];
+//GESIONE INPUT
+const INPUT: usize = 784; // 28 * 28 * 3
+const NUM_TRAIN_SAMPLE: usize = 1; // Numero di immagini in questo caso
 
-const DATA: [[f64; 3]; NUM_TRAIN_SAMPLE] = NAND;
-const LEN_ARC: usize = 1;
-const ARC: [usize; LEN_ARC] = [1];
-const NUM_NEURONS: usize = 1;
+//GESTIONE ARCHITETTURA
+const LEN_ARC: usize = 3;
+const ARC: [usize; LEN_ARC] = [2, 3, 2];
+const NUM_NEURONS: usize = 7;
 
 //FINE COSTANTI NN
 
@@ -101,7 +92,7 @@ fn main() {
         .title("Neural Network")
         .build();
 
-    let mut nrs: [Neuron; NUM_NEURONS] = Default::default();
+    let mut nrs: [Neuron; NUM_NEURONS] = unsafe { std::mem::MaybeUninit::uninit().assume_init() };
     let mut cont = 0;
     let mut cost: f64;
     let mut costs_vec: Vec<f64> = Vec::new();
@@ -128,20 +119,32 @@ fn main() {
 
     //RESIZE AND LOAD IMAGES
     let mut img1 = Image::load_image(IMG_1_FPATH).unwrap();
+    let color_vec_1 = nn_get_colors_array(img1.get_image_data());
     Image::resize(&mut img1, IMG_DIM.x, IMG_DIM.y);
     let texture_1 = rl.load_texture_from_image(&thread, &img1).unwrap();
 
     let mut img2 = Image::load_image(IMG_2_FPATH).unwrap();
+    let color_vec_2 = nn_get_colors_array(img2.get_image_data());
     Image::resize(&mut img2, IMG_DIM.x, IMG_DIM.y);
     let texture_2 = rl.load_texture_from_image(&thread, &img2).unwrap();
 
+    let data: [[f64; INPUT]; NUM_TRAIN_SAMPLE] = [color_vec_1];
+
+    //TODO:
+    // -> creare una funzione che da una color_map ti da un vettore con tutti i colori in ordine
+    // -> creare la funzione che faccia l'opposto
+    // -> salvare i due vettori in un array DATA che verrà passato a cost
+    // -> fare dei test per verificare se è strettamente necessario avere un layer di neuroni pari
+    //    al numero di pixel * canali.
+
+    //START DRAWING RAYLIB
     while !rl.window_should_close() {
         let mut d = rl.begin_drawing(&thread);
 
         d.clear_background(Color::BLACK);
 
         if cont < NUM_TEST {
-            cost = update_weights(&mut nrs, rate, false);
+            cost = update_weights(&mut nrs, data, rate);
 
             //println!("{}", cost);
             if cont == 0 {
@@ -149,7 +152,6 @@ fn main() {
                 costs_vec.push(cost);
             } else {
                 costs_vec.push((max_cost - cost) / max_cost);
-                //println!("{} {} {}", cost, max_cost, (max_cost - cost) / max_cost);
             }
             cont += 1;
         }
@@ -174,17 +176,12 @@ fn sigmuid(x: f64) -> f64 {
     1.0 / (1.0 + exp(-x as f32)) as f64
 }
 
-fn derivate_sigmuid(x: f64) -> f64 {
-    ((-exp(-x as f32)) / ((1.0 + exp(-x as f32)) * (1.0 + exp(-x as f32)))) as f64
-}
-
 fn randomf() -> f64 {
     (rand::thread_rng().gen_range(-1000..=1000) as f64) / 1000.0 * 5.0
 }
 
-fn cost(nrs: &mut [Neuron; NUM_NEURONS]) -> f64 {
+fn cost(nrs: &mut [Neuron; NUM_NEURONS], data: &[[f64; INPUT]; NUM_TRAIN_SAMPLE]) -> f64 {
     let mut out: f64 = 0.0;
-    let mut res: f64 = -1.0;
 
     for sample_idx in 0..NUM_TRAIN_SAMPLE {
         //Per ogni tupla d'input
@@ -207,7 +204,7 @@ fn cost(nrs: &mut [Neuron; NUM_NEURONS]) -> f64 {
                     //Per ogni input
                     //println!("{} {} {} {}", idx, d, nrs.len(), nrs[0].w.len());
                     if layer_idx == 0 {
-                        somma += nrs[neuron_idx].w[inp_idx] * DATA[sample_idx][inp_idx];
+                        somma += nrs[neuron_idx].w[inp_idx] * data[sample_idx][inp_idx];
                     } else {
                         somma += nrs[neuron_idx].w[inp_idx] * input[inp_idx];
                     }
@@ -216,12 +213,18 @@ fn cost(nrs: &mut [Neuron; NUM_NEURONS]) -> f64 {
                 output.push(sigmuid(somma));
                 neuron_idx += 1;
             }
-            res = output[0];
         }
-        let dst: f64 = res - DATA[sample_idx][INPUT];
-        out += dst * dst;
+        println!("{}", output.len());
+        let mut tot_dst = 0.0;
+        for i in 0..output.len() {
+            tot_dst += output[i] - data[sample_idx][i];
+        }
+
+        tot_dst /= output.len() as f64;
+        out += tot_dst * tot_dst;
     }
 
+    //println!("FINITO");
     out / (NUM_TRAIN_SAMPLE as f64)
 }
 
@@ -246,7 +249,11 @@ fn get_randomize_neuron(lidx: usize) -> Neuron {
     n
 }
 
-fn update_weights(nrs: &mut [Neuron; NUM_NEURONS], rate: f64, print: bool) -> f64 {
+fn update_weights(
+    nrs: &mut [Neuron; NUM_NEURONS],
+    data: [[f64; INPUT]; NUM_TRAIN_SAMPLE],
+    rate: f64,
+) -> f64 {
     //let cst: f64 = cost(nrs);
     let mut cst: f64 = 0.0;
     let mut idx: usize = 0;
@@ -254,7 +261,7 @@ fn update_weights(nrs: &mut [Neuron; NUM_NEURONS], rate: f64, print: bool) -> f6
     for layer_idx in 0..LEN_ARC {
         //Per ogni Layer dell'architettura
         for _ in 0..ARC[layer_idx] {
-            cst = cost(nrs);
+            cst = cost(nrs, &data);
             //Per ogni Neurone del Layer
             let weight: Vec<f64> = (nrs[idx].w).clone();
             let bias: f64 = nrs[idx].b;
@@ -262,27 +269,17 @@ fn update_weights(nrs: &mut [Neuron; NUM_NEURONS], rate: f64, print: bool) -> f6
                 //Per ogni input
 
                 nrs[idx].w[inp_idx] += EPS;
-                let dw: f64 = (cost(nrs) - cst) / EPS;
+                let dw: f64 = (cost(nrs, &data) - cst) / EPS;
                 nrs[idx].w[inp_idx] = weight[inp_idx];
                 nrs[idx].w[inp_idx] -= dw * rate;
             }
 
             nrs[idx].b += EPS;
-            let dw: f64 = (cost(nrs) - cst) / EPS;
+            let dw: f64 = (cost(nrs, &data) - cst) / EPS;
             nrs[idx].b = bias;
             nrs[idx].b -= dw * rate;
             idx += 1;
         }
-    }
-
-    if print == true {
-        println!("-----------------------");
-        for i in 0..=1 {
-            for k in 0..=1 {
-                nn_get_result(nrs, [i as f64, k as f64], true);
-            }
-        }
-        println!("------------------------");
     }
 
     cst
@@ -331,47 +328,6 @@ fn nn_get_result(nrs: &mut [Neuron; NUM_NEURONS], data: [f64; INPUT], print: boo
     }
 
     res
-}
-
-fn nn_draw_lg_text(d: &mut RaylibDrawHandle<'_>, nrs: &mut [Neuron; NUM_NEURONS]) {
-    let abs_x = (0.75 * SCREEN_WIDTH as f64) as i32;
-    let abs_y = (0.25 * SCREEN_HEIGHT as f64) as i32;
-
-    for x in 0..NUM_TRAIN_SAMPLE {
-        d.draw_text(
-            &(DATA[x][0].to_string()),
-            abs_x,
-            abs_y + (x as i32 * DEF_PADDING),
-            TEXT_DIM,
-            Color::WHITE,
-        );
-
-        d.draw_text(
-            &(DATA[x][1].to_string()),
-            abs_x + DEF_PADDING,
-            abs_y + (x as i32 * DEF_PADDING),
-            TEXT_DIM,
-            Color::WHITE,
-        );
-
-        d.draw_text(
-            &(DATA[x][2].to_string()),
-            abs_x + (DEF_PADDING * 2),
-            abs_y + (x as i32 * DEF_PADDING),
-            TEXT_DIM,
-            Color::WHITE,
-        );
-
-        let res = format!("{:.4}", nn_get_result(nrs, [DATA[x][0], DATA[x][1]], false));
-
-        d.draw_text(
-            &res,
-            abs_x + (DEF_PADDING * 3),
-            abs_y + (x as i32 * DEF_PADDING),
-            TEXT_DIM,
-            Color::WHITE,
-        );
-    }
 }
 
 fn nn_draw_graph(d: &mut RaylibDrawHandle<'_>, costs_vec: &mut Vec<f64>) {
@@ -469,10 +425,11 @@ fn nn_draw_neurons(d: &mut RaylibDrawHandle<'_>, nrs: &mut [Neuron; NUM_NEURONS]
     let mut max_w: f64 = 0.0;
     let mut g: f64;
     let mut r: f64;
-    let mut inp_centers: [IntVec2; INPUT] = Default::default();
+    //let mut inp_centers: [IntVec2; INPUT] = Default::default();
     let mut centers: Vec<IntVec2> = Vec::with_capacity(ARC[0]);
     let mut prev_centers: Vec<IntVec2> = centers.clone();
 
+    /*
     //Disegno i cerchi dell'input
     for l in 0..INPUT {
         let center: IntVec2 = IntVec2 {
@@ -490,10 +447,13 @@ fn nn_draw_neurons(d: &mut RaylibDrawHandle<'_>, nrs: &mut [Neuron; NUM_NEURONS]
                 b: 150,
                 a: 255,
             },
-        );
+        );    data[0] = color_vec_1;
+    data[1] = color_vec_2;
+
 
         inp_centers[l] = center;
     }
+    */
 
     //Disegno la rete Neuroale
     for i in 0..LEN_ARC {
@@ -541,6 +501,8 @@ fn nn_draw_neurons(d: &mut RaylibDrawHandle<'_>, nrs: &mut [Neuron; NUM_NEURONS]
                 weight /= max_w;
 
                 if i == 0 {
+                    continue;
+                    /*
                     d.draw_line(
                         inp_centers[x].x,
                         inp_centers[x].y,
@@ -552,7 +514,8 @@ fn nn_draw_neurons(d: &mut RaylibDrawHandle<'_>, nrs: &mut [Neuron; NUM_NEURONS]
                             b: 0,
                             a: 255,
                         },
-                    );
+
+                    );*/
                 } else {
                     d.draw_line(
                         prev_centers[x].x,
@@ -599,4 +562,14 @@ fn abs(x: f64) -> f64 {
     }
 }
 
-fn pixel_from_png() {}
+fn nn_get_colors_array(color_map: ImageColors) -> [f64; INPUT] {
+    let mut out: [f64; INPUT] = unsafe { std::mem::MaybeUninit::uninit().assume_init() };
+    let len: usize = color_map.len();
+    for i in 0..len {
+        out[i] = color_map[i].r as f64 / 255 as f64;
+    }
+
+    //println!("{:#?}", out);
+
+    out
+}
