@@ -3,15 +3,6 @@
 version = 3
 
 [[package]]
-name = "NeuralNetwork"
-version = "0.1.0"
-dependencies = [
- "fast-math",
- "rand",
- "raylib",
-]
-
-[[package]]
 name = "cc"
 version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -66,6 +57,15 @@ name = "ieee754"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9007da9cacbd3e6343da136e98b0d2df013f553d35bdec8b518f07bea768e19c"
+
+[[package]]
+name = "image_learner"
+version = "0.1.0"
+dependencies = [
+ "fast-math",
+ "rand",
+ "raylib",
+]
 
 [[package]]
 name = "lazy_static"

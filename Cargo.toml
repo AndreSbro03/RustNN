@@ -1,5 +1,5 @@
 [package]
-name = "NeuralNetwork"
+name = "image_learner"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,3 +10,8 @@ rand = "0.8"
 fast-math = "0.1"
 raylib = { version = "3.7" }
 
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3

@@ -144,7 +144,7 @@ fn main() {
             //println!("{}", cost);
             if cont == 0 {
                 max_cost = cost;
-                costs_vec.push(cost);
+                costs_vec.push(0.0); //-> max_cost - cost == 0.0
             } else {
                 costs_vec.push((max_cost - cost) / max_cost);
                 //println!("{} {} {}", cost, max_cost, (max_cost - cost) / max_cost);
@@ -391,7 +391,7 @@ fn nn_draw_graph(d: &mut RaylibDrawHandle<'_>, costs_vec: &mut Vec<f64>) {
     let mut x_prec: i32 = -1;
     let mut y_prec: i32 = -1;
 
-    for n_point in 1..vec_len {
+    for n_point in 0..vec_len {
         let x =
             (((n_point as f64) / (vec_len as f64)) * GRAPHIC_DIM.x as f64) as i32 + GRAPHIC_POS.x;
         let y = (costs_vec[n_point] * GRAPHIC_DIM.y as f64) as i32 + GRAPHIC_POS.y;
