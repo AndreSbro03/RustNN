@@ -8,17 +8,19 @@ use std::mem::{self, MaybeUninit};
 //INIZIO COSTANTI NN
 //GESTIONE LEARNING
 const NUM_TEST: u32 = 1000 * 1000;
-const EPS: f64 = 0.15;
-const MAX_RATE: f64 = 100.0;
+const EPS: f64 = 0.5;
+const INIT_RATE: f64 = 2.0;
+const MAX_RATE: f64 = 50.0;
 
 //GESIONE INPUT
-const INPUT: usize = 28 * 28;
-const NUM_TRAIN_SAMPLE: usize = 1; // Numero di immagini in questo caso
+const IMG_PIXELS: usize = 28 * 28;
+const INPUT: usize = IMG_PIXELS;
+const NUM_TRAIN_SAMPLE: usize = 2; // Numero di immagini in questo caso
 
 //GESTIONE ARCHITETTURA
-const LEN_ARC: usize = 4;
-const ARC: [usize; LEN_ARC] = [4, 14, 2, INPUT];
-const NUM_NEURONS: usize = INPUT + 20;
+const LEN_ARC: usize = 2;
+const ARC: [usize; LEN_ARC] = [2, INPUT];
+const NUM_NEURONS: usize = INPUT + 2;
 
 //FINE COSTANTI NN
 
@@ -71,11 +73,12 @@ const VISUAL_NN_NEURONS_RADIUS: f32 = 20.0;
 
 //GESTIONE IMMAGINI
 const IMG_1_FPATH: &str = "images/8.png";
+const IMG_2_FPATH: &str = "images/6.png";
 const IMG_POS: IntVec2 = IntVec2 {
     x: GRAPHIC_POS.x + GRAPHIC_DIM.x + DEF_PADDING * 4,
     y: RATE_BAR_POS.y + RATE_BAR_DIM.y + DEF_PADDING * 2,
 };
-const IMG_DIM: IntVec2 = IntVec2 { x: 200, y: 200 };
+const IMG_DIM: IntVec2 = IntVec2 { x: 100, y: 100 };
 
 #[derive(Debug, Default)]
 struct Neuron {
@@ -119,10 +122,15 @@ fn main() {
     Image::resize(&mut img1, IMG_DIM.x, IMG_DIM.y);
     let texture_1 = rl.load_texture_from_image(&thread, &img1).unwrap();
 
-    let data: [[f64; INPUT]; NUM_TRAIN_SAMPLE] = [color_vec_1];
+    let mut img2 = Image::load_image(IMG_2_FPATH).unwrap();
+    let color_vec_2 = nn_get_input_array(img2.get_image_data());
+    Image::resize(&mut img2, IMG_DIM.x, IMG_DIM.y);
+    let texture_2 = rl.load_texture_from_image(&thread, &img2).unwrap();
+
+    let data: [Vec<f64>; NUM_TRAIN_SAMPLE] = [color_vec_1, color_vec_2];
     println!("{:#?}", data);
 
-    let mut rate: f64 = 1.2;
+    let mut rate: f64 = INIT_RATE;
     let mut cont: u32 = 0;
     let mut max_cost: f64 = -1.0;
     let mut costs_vec: Vec<f64> = Vec::new();
@@ -143,7 +151,7 @@ fn main() {
         d.clear_background(Color::BLACK);
 
         if cont < NUM_TEST {
-            cost = update_weights(&mut nrs, data, rate);
+            cost = update_weights(&mut nrs, &data, rate);
 
             if cont == 0 {
                 max_cost = cost;
@@ -168,10 +176,15 @@ fn main() {
         }
 
         d.draw_texture(&texture_1, IMG_POS.x, IMG_POS.y, Color::WHITE);
+        d.draw_texture(&texture_2, IMG_POS.x, IMG_POS.y + IMG_DIM.y, Color::WHITE);
 
-        let nn_output: Vec<f64> = nn_get_result(&nrs, data[0]);
-        if cont % 200 == 0 {
-            println!("{:#?}", nn_output);
+        let data_cp = data[0].clone();
+        let nn_output: Vec<f64> = nn_get_result(&nrs, &data_cp);
+        if cont % 1000 == 0 {
+            //println!("{:#?}", nn_output);
+            for i in 0..INPUT {
+                println!("{}", data[0][i] - nn_output[i]);
+            }
         }
         out_img = nn_get_image_output(nn_output);
         texture_out.update_texture(&nn_get_pixels(out_img.get_image_data()));
@@ -183,12 +196,32 @@ fn sigmuid(x: f64) -> f64 {
     1.0 / (1.0 + exp(-x as f32)) as f64
 }
 
+fn relu(x: f64) -> f64 {
+    if x < 0.0 {
+        0.0
+    } else {
+        x
+    }
+}
+
+fn leaky_relu(x: f64) -> f64 {
+    if x > 0.0 {
+        x
+    } else {
+        0.1 * x
+    }
+}
+
+fn silu(x: f64) -> f64 {
+    x * sigmuid(x)
+}
+
 fn randomf() -> f64 {
     (rand::thread_rng().gen_range(-1000..=1000) as f64) / 1000.0 * 5.0
 }
 
 //stampa a terminale il risultato e lo ritorna anche
-fn nn_get_result(nrs: &[Neuron; NUM_NEURONS], data: [f64; INPUT]) -> Vec<f64> {
+fn nn_get_result(nrs: &[Neuron; NUM_NEURONS], data: &Vec<f64>) -> Vec<f64> {
     let mut idx: usize = 0;
     let mut output: Vec<f64> = Vec::with_capacity(ARC[0]);
 
@@ -209,28 +242,26 @@ fn nn_get_result(nrs: &[Neuron; NUM_NEURONS], data: [f64; INPUT]) -> Vec<f64> {
                 }
             }
             somma += nrs[idx].b;
-            output.push(sigmuid(somma));
+            output.push(silu(somma));
             idx += 1;
         }
     }
     output
 }
 
-fn cost(nrs: &[Neuron; NUM_NEURONS], data: &[[f64; INPUT]; NUM_TRAIN_SAMPLE]) -> f64 {
+fn cost(nrs: &[Neuron; NUM_NEURONS], data: &[Vec<f64>; NUM_TRAIN_SAMPLE]) -> f64 {
     let mut cost: f64 = 0.0;
 
     for sample_idx in 0..NUM_TRAIN_SAMPLE {
         //Per ogni tupla d'input
-        let output: Vec<f64> = nn_get_result(&nrs, data[0]); //println!("{}", output.len());
+        let output: Vec<f64> = nn_get_result(&nrs, &data[sample_idx]); //println!("{}", output.len());
         let mut tot_dst = 0.0;
-        for i in 0..INPUT {
-            tot_dst += (output[i] - data[sample_idx][i])
-                * (output[i] - data[sample_idx][i])
-                * (output[i] - data[sample_idx][i])
-                * (output[i] - data[sample_idx][i]);
+        for i in 0..output.len() {
+            tot_dst += ((output[i] - data[sample_idx][i]) * 1.8)
+                * ((output[i] - data[sample_idx][i]) * 1.8);
         }
 
-        tot_dst /= INPUT as f64;
+        tot_dst /= output.len() as f64;
         cost += tot_dst * tot_dst;
     }
 
@@ -261,7 +292,7 @@ fn get_randomize_neuron(lidx: usize) -> Neuron {
 
 fn update_weights(
     nrs: &mut [Neuron; NUM_NEURONS],
-    data: [[f64; INPUT]; NUM_TRAIN_SAMPLE],
+    data: &[Vec<f64>; NUM_TRAIN_SAMPLE],
     rate: f64,
 ) -> f64 {
     let mut cst: f64 = 0.0;
@@ -548,22 +579,19 @@ fn nn_get_pixels(color_map: ImageColors) -> [u8; (IMG_DIM.y * IMG_DIM.y * 4) as 
     out
 }
 
-fn nn_get_input_array(color_map: ImageColors) -> [f64; INPUT] {
-    let out: [f64; INPUT] = {
-        let mut out: [MaybeUninit<f64>; INPUT] = unsafe { MaybeUninit::uninit().assume_init() };
-        let len: usize = color_map.len();
-        for i in 0..len {
-            out[i].write(color_map[i].r as f64 / 255 as f64);
-        }
+fn nn_get_input_array(color_map: ImageColors) -> Vec<f64> {
+    let mut out: Vec<f64> = Vec::with_capacity(IMG_PIXELS);
+    let len: usize = color_map.len();
+    for i in 0..len {
+        out.push(color_map[i].r as f64 / 255 as f64);
+    }
 
-        unsafe { mem::transmute::<_, [f64; INPUT]>(out) }
-    };
     out
 }
 
 fn nn_get_image_output(norm_map: Vec<f64>) -> Image {
     let mut img = Image::gen_image_color(28, 28, Color::BLACK);
-    for i in 0..INPUT {
+    for i in 0..IMG_PIXELS {
         let shade = (norm_map[i] * 255.0) as u8;
         let color: Color = Color::new(shade, shade, shade, 255);
         let x = i as i32 % 28;
