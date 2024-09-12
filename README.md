@@ -1,5 +1,5 @@
 # RustNN
-Inspired by Tsodin Porject ( **youtube.com/watch?v=PGSba51aRYU** ) this is a rudimental DeepLearning algorithm in Rust that I make just to try rust.
+Inspired by Tsodin Porject ( **https://youtu.be/PGSba51aRYU?si=QogqQE1VkJ9B_6Uy** ) this is a rudimental DeepLearning algorithm in Rust that I make just to try rust.
 
 I used raylib ( **https://www.raylib.com/** ) to manage the window.
 
