@@ -12,7 +12,9 @@ All comments are in Italian because I didn't think of making the project public,
 
 ## Screenshots
 
-![App ScreenRecord]()
+![App ScreenRecord](
+https://github.com/user-attachments/assets/89ad02fa-2121-48d8-b771-d026f3caf850
+)
 
 ## Installation
 
