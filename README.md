@@ -12,7 +12,7 @@ All comments are in Italian because I didn't think of making the project public,
 
 ## Screenshots
 
-![App Screenshot](https://github.com/AndreSbro03/RustNN/blob/main/Record.mp4)
+![App Screenshot](https://github.com/AndreSbro03/RustNN/blob/main/screenshots/Record.mp4)
 
 ## Installation
 
