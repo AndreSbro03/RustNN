@@ -12,7 +12,7 @@ There is also a file to upscale images using the same Neural Network, but is ver
 
 ![App Screenshot](screenshots/240921_12h35m01s_screenshot.png)
 
-![App ScreenRecord](https://github.com/user-attachments/assets/a078211d-7b59-4849-b4d1-4659f6aa77e6)
+![NAND ScreenRecord](https://github.com/user-attachments/assets/a078211d-7b59-4849-b4d1-4659f6aa77e6)
 
 ## Installation
 
