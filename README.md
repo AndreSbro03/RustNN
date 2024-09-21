@@ -13,6 +13,7 @@ All comments are in Italian because I didn't think of making the project public,
 ## Screenshots
 
 ![App Screenshot](screenshots/240921_12h35m01s_screenshot.png)
+![App ScreenRecord](screenshots/Record.mp4)
 
 ## Installation
 
