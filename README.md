@@ -8,12 +8,11 @@ I used raylib ( https://www.raylib.com/ ) to manage the window.
 
 There is also a file to upscale images using the same Neural Network, but is very slow since I didn't optimized it yet.
 
-All comments are in Italian because I didn't think of making the project public, but all the importants ones are translated down here.
-
 ## Screenshots
 
 ![App Screenshot](screenshots/240921_12h35m01s_screenshot.png)
-![App ScreenRecord](screenshots/Record.mp4)
+
+![App ScreenRecord](https://github.com/user-attachments/assets/a078211d-7b59-4849-b4d1-4659f6aa77e6)
 
 ## Installation
 
