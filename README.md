@@ -14,7 +14,10 @@ Built using **raylib** for window management. Check it out at [raylib.com](https
 ## Screenshots
 
 ![App Screenshot](screenshots/240921_12h35m01s_screenshot.png)
-![NAND ScreenRecord](https://github.com/user-attachments/assets/a078211d-7b59-4849-b4d1-4659f6aa77e6)
+
+
+[Watch NAND ScreenRecord](https://github.com/user-attachments/assets/a078211d-7b59-4849-b4d1-4659f6aa77e6)
+
 
 ## Installation
 
